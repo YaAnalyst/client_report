@@ -16,8 +16,8 @@ if client_id:
             host="localhost",
             port="5432",
             database="agency_db",     # ← заміни на назву твоєї бази
-            user="aduniverse",       # ← заміни на ім’я користувача
-            password="your_password"  # ← заміни на свій пароль
+            user="yana_finance",       # ← заміни на ім’я користувача
+            password="may05"  # ← заміни на свій пароль
         )
 
         query = """
