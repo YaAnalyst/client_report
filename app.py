@@ -1,40 +1,46 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
+from sqlalchemy import create_engine, text
 
-st.set_page_config(page_title="client_report", layout="wide")
+st.set_page_config(page_title="Звіт клієнта", layout="wide")
 
-st.title("aduniverse_c032")
+st.title("📊 Звіт по замовленнях клієнта")
 
-# Введення client_id
-client_id = st.text_input("Введіть ваш Client ID:", "C032")
+# Підключення до бази
+engine = create_engine(st.secrets["database"]["url"])
 
-if client_id:
-    try:
-        # Параметри підключення
-        conn = psycopg2.connect(
-            host="localhost",
-            port="5432",
-            database="agency_db",     # ← заміни на назву твоєї бази
-            user="yana_finance",       # ← заміни на ім’я користувача
-            password="may05"  # ← заміни на свій пароль
-        )
+# Фільтри
+with st.sidebar:
+    st.header("Фільтри")
+    date_from = st.date_input("Дата від", pd.Timestamp("2024-01-01"))
+    date_to = st.date_input("Дата до", pd.Timestamp.today())
+    client = st.text_input("Ім’я клієнта (необов’язково)")
 
-        query = """
-            SELECT * FROM AdUniverse_C032
-            WHERE client_id = %s
-            ORDER BY transaction_date DESC;
-        """
+# Побудова SQL-запиту
+query = text("""
+    SELECT * FROM orders
+    WHERE order_date BETWEEN :start AND :end
+    AND (:client = '' OR client_name ILIKE :client_pattern)
+    ORDER BY order_date DESC
+""")
 
-        df = pd.read_sql(query, conn, params=[client_id])
-        conn.close()
+params = {
+    "start": date_from,
+    "end": date_to,
+    "client": client,
+    "client_pattern": f"%{client}%"
+}
 
-        if not df.empty:
-            st.success(f"Показуємо дані для: {client_id}")
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.warning("Даних не знайдено для цього клієнта.")
-    except Exception as e:
-        st.error(f"Помилка підключення або запиту: {e}")
-else:
-    st.info("Введіть ваш Client ID, щоб побачити дані.")
+# Отримання даних
+with engine.connect() as conn:
+    df = pd.read_sql(query, conn, params=params)
+
+# Виведення
+st.write(f"Знайдено записів: {len(df)}")
+st.dataframe(df)
+
+# (опційно) Графік
+if not df.empty:
+    df["order_date"] = pd.to_datetime(df["order_date"])
+    chart = df.groupby("order_date").size()
+    st.line_chart(chart)
